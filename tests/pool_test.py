@@ -1,7 +1,7 @@
 import asyncio
 import pytest
 
-from asyncprocesspool import AsyncProcessPool
+from aio_process_pool import AsyncProcessPool
 
 def fib(n):
     assert n >= 0

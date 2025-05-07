@@ -1,7 +1,7 @@
-# asyncprocesspool
+# aio_process_pool
 
-[![PyPI - Version](https://img.shields.io/pypi/v/asyncprocesspool.svg)](https://pypi.org/project/asyncprocesspool)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/asyncprocesspool.svg)](https://pypi.org/project/asyncprocesspool)
+[![PyPI - Version](https://img.shields.io/pypi/v/aio_process_pool.svg)](https://pypi.org/project/aio_process_pool)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/aio_process_pool.svg)](https://pypi.org/project/aio_process_pool)
 
 -----
 
@@ -14,13 +14,13 @@
 ## Installation
 
 ```console
-pip install asyncprocesspool
+pip install aio_process_pool
 ```
 
 ## Usage
 
 ```python
-from asyncprocesspool import AsyncProcessPool
+from aio_process_pool import AsyncProcessPool
 
 
 def foo(x):
@@ -53,4 +53,4 @@ async def using_executor():
 
 ## License
 
-`asyncprocesspool` is distributed under the terms of the [MIT](https://spdx.org/licenses/MIT.html) license.
+`aio_process_pool` is distributed under the terms of the [MIT](https://spdx.org/licenses/MIT.html) license.
