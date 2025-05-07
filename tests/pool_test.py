@@ -11,6 +11,8 @@ def fib(n):
     if n <= 2: return 1
     return fib(n-1) + fib(n-2)
 
+first_30_fib_numbers = [fib(x) for x in range(30)]
+
 @pytest.mark.asyncio
 async def test_run():
     pool = AsyncProcessPool()
@@ -19,10 +21,26 @@ async def test_run():
 @pytest.mark.asyncio
 async def test_executor():
     pool = AsyncProcessPool()
-
     loop = asyncio.get_event_loop()
 
-    futures = [loop.run_in_executor(pool, partial(fib, 35-i)) for i in range(7)]
-    results = await asyncio.gather(*futures)
+    futures = [loop.run_in_executor(pool, partial(fib, i)) for i in range(30)]
+    assert await asyncio.gather(*futures) == first_30_fib_numbers
 
-    assert results == [9227465, 5702887, 3524578, 2178309, 1346269, 832040, 514229]
+@pytest.mark.asyncio
+async def test_async_map():
+    pool = AsyncProcessPool()
+    assert await pool.map_async(fib, range(30)) == first_30_fib_numbers
+
+def test_map():
+    pool = AsyncProcessPool()
+    assert pool.map(fib, range(30)) == first_30_fib_numbers
+
+def test_context_manager():
+    with AsyncProcessPool() as p:
+        assert p.map(fib, range(30)) == first_30_fib_numbers
+
+@pytest.mark.asyncio
+async def test_async_context_manager():
+    with AsyncProcessPool() as p:
+        assert await p.run(fib, 6) == 8
+

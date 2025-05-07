@@ -37,8 +37,8 @@ class Worker:
         self.rx.send((f, args, kwargs))
         return await _io_bound(self.rx.recv)
 
-    def shutdown(self, kill=False):
-        if not kill:
+    def shutdown(self, wait=True):
+        if wait:
             self.rx.send((None, None, None))
         else:
             self.process.kill()
