@@ -1,4 +1,5 @@
 import asyncio
+import concurrent
 import os
 
 from .worker import Worker as _Worker
@@ -13,7 +14,7 @@ class AsyncProcessPool:
 
         self.worker = [_Worker() for _ in range(max_size)]
         self.pool = asyncio.Queue()
-        self.futures = set()
+        self.futures_dict = {}
         for w in self.worker:
             self.pool.put_nowait(w)
 
@@ -26,30 +27,52 @@ class AsyncProcessPool:
         return self.pool.get_nowait()
 
     async def run(self, f, *args, **kwargs):
+        # get worker
         worker = await self._get_worker()
         assert worker.process.is_alive()
 
-        result, exception = await worker.run(f, *args, **kwargs)
+        # check if future was cancelled if a corresponding future exists
+        task = asyncio.current_task()
+        cancelled = False
+        if task in self.futures_dict:
+            cancelled = not self.futures_dict[task].set_running_or_notify_cancel()
 
+        # execute
+        if not cancelled:
+            result, exception = await worker.run(f, *args, **kwargs)
+        else:
+            result, exception = None, None
+            del self.futures_dict[task]
+
+        # return worker
         self.pool.put_nowait(worker)
 
+        # raise exception if necessary or return result
         if exception is not None:
             raise exception
 
         return result
 
+    def _task_done_callback(self, task):
+        concurrent_future = self.futures_dict.pop(task)
+
+        if (exception := task.exception()) is not None:
+            concurrent_future.set_exception(exception)
+        else:
+            concurrent_future.set_result(task.result())
+
     def submit(self, fn, /, *args, **kwargs):
         task = asyncio.create_task(self.run(fn, *args, **kwargs))
 
-        self.futures.add(task)
-        task.add_done_callback(self.futures.discard)
+        self.futures_dict[task] = concurrent.futures._base.Future()
+        task.add_done_callback(self._task_done_callback)
 
-        return task
+        return self.futures_dict[task]
 
     def shutdown(self, wait=True, *, cancel_futures=False):
         if cancel_futures:
-            for f in self.futures:
-                f.cancel()
+            for cfuture in self.futures_dict.values():
+                cfuture.cancel()
 
         if not wait:
             raise ValueError("TODO: handle wait=False")

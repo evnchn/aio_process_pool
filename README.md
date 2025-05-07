@@ -41,11 +41,6 @@ async def using_run():
     return await pool.run(foo, 72)
 
 
-async def using_submit():
-    future = pool.submit(foo, 73)
-    return await future
-
-
 async def using_executor():
     from functools import partial
 
