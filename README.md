@@ -5,7 +5,7 @@
 
 -----
 
-Tihs pacakage provides an async, `concurrent.futures.Executor` compliant, android compatible process pool.
+Tihs pacakage provides an async, (hopefully soon fully) `concurrent.futures.Executor` compliant, android compatible process pool.
 
 ## Table of Contents
 
