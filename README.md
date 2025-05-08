@@ -11,6 +11,7 @@ Tihs pacakage provides an async, (hopefully soon fully) `concurrent.futures.Exec
 
 - [Installation](#installation)
 - [Usage](#usage)
+- [Demo](#demo)
 - [License](#license)
 
 ## Installation
@@ -44,6 +45,28 @@ async def executor_example():
 
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(executor, partial(foo, 74))
+```
+
+## Demo
+
+```python
+import asyncio
+from aio_process_pool import Executor
+
+def fib(n):
+    if n <= 2: return 1
+    return fib(n-1) + fib(n-2)
+
+def fib_wrapper(n):
+    print(f"fib({n}) = .....")
+    result = fib(n)
+    print(f"fib({n}) = {result}")
+
+async def watch_htop_and_output_while_execution():
+    pool = Executor()
+    await pool.map_async(fib_wrapper, range(45))
+
+asyncio.run(watch_htop_and_output_while_execution())
 ```
 
 ## License
