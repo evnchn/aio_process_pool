@@ -1,13 +1,13 @@
 import traceback
 from multiprocessing import Pipe, Process
 
-from .utils import SubprocessException, io_bound as _io_bound
+from .utils import SubprocessException, io_bound
 
 
-def _worker_process(tx):
+def _worker_process(child_pipe):
     try:
         while True:
-            func, args, kwargs = tx.recv()
+            func, args, kwargs = child_pipe.recv()
             if func is None:
                 break
 
@@ -19,27 +19,27 @@ def _worker_process(tx):
                                                 str(e),
                                                 traceback.format_exc())
 
-            tx.send((result, exception))
+            child_pipe.send((result, exception))
     except KeyboardInterrupt:
         pass
 
 
 class Worker:
     def __init__(self):
-        self.rx, tx = Pipe()
-        self.process = Process(target=_worker_process, args=(tx,))
+        self.pipe, child_pipe = Pipe()
+        self.process = Process(target=_worker_process, args=(child_pipe,))
         self.process.daemon = True
         self.process.start()
 
     async def run(self, f, *args, **kwargs):
         assert f is not None
 
-        self.rx.send((f, args, kwargs))
-        return await _io_bound(self.rx.recv)
+        self.pipe.send((f, args, kwargs))
+        return await io_bound(self.pipe.recv)
 
-    def shutdown(self, wait=True):
-        if wait:
-            self.rx.send((None, None, None))
+    def shutdown(self, kill=False):
+        if not kill:
+            self.pipe.send((None, None, None))
         else:
             self.process.kill()
         self.process.join()

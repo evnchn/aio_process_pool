@@ -6,29 +6,22 @@ from functools import partial
 
 from .process_pool import ProcessPool
 
-class Executor(ProcessPool, concurrent.futures.Executor):
-    def __init__(self):
-        self.futures_dict = {}
-        super().__init__()
+class Executor(concurrent.futures.Executor):
+    def __init__(self, max_workers=None):
+        self._futures_dict = {}
+        self._pool = ProcessPool(max_workers, self._set_running_or_notify_cancel)
 
-    def _set_running_or_notify_cancel(self) -> bool:
-        if not super()._set_running_or_notify_cancel():
-            return False
+    def _set_running_or_notify_cancel(self, task) -> bool:
+        assert task in self._futures_dict
 
-        task = asyncio.current_task()
-
-        # if this task was not schedule by submit
-        if not task in self.futures_dict:
+        if self._futures_dict[task].set_running_or_notify_cancel():
             return True
 
-        runable = self.futures_dict[task].set_running_or_notify_cancel()
-        if not runable:
-            del self.futures_dict[task]
-
-        return runable
+        del self._futures_dict[task]
+        return False
 
     def _task_done_callback(self, task):
-        concurrent_future = self.futures_dict.pop(task)
+        concurrent_future = self._futures_dict.pop(task)
 
         if (exception := task.exception()) is not None:
             concurrent_future.set_exception(exception)
@@ -36,23 +29,23 @@ class Executor(ProcessPool, concurrent.futures.Executor):
             concurrent_future.set_result(task.result())
 
     def submit(self, fn, /, *args, **kwargs):
-        task = asyncio.create_task(self.run(fn, *args, **kwargs))
+        task = asyncio.create_task(self._pool.run(fn, *args, **kwargs))
 
-        self.futures_dict[task] = concurrent.futures._base.Future()
+        self._futures_dict[task] = concurrent.futures._base.Future()
 
         task.add_done_callback(self._task_done_callback)
 
-        return self.futures_dict[task]
+        return self._futures_dict[task]
 
     def shutdown(self, wait=True, *, cancel_futures=False):
         if cancel_futures:
-            for futures in self.futures_dict.values():
+            for futures in self._futures_dict.values():
                 futures.cancel()
 
         if not wait:
             raise ValueError("TODO: handle wait=False")
 
-        super().shutdown(wait, cancel_futures=cancel_futures)
+        self._pool.shutdown()
 
     async def map_async(self, fn, *iterables, timeout=None, chunksize=1):
         assert chunksize == 1
