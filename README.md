@@ -30,9 +30,10 @@ def foo(x):
 
 # Note:
 # - the process pool must be initialize AFTER all functions that are supposed
-#   to be called are defined
-# - it's not save to initialize a process pool from a multithreaded process
+#   to be called are defined (see #2)
+# - it's not save to initialize this process pool from a multithreaded process
 #   because it's based on `os.fork` / `multiprocessing.Process`
+#   (note: same is true for concurrent.future.ProcessPoolExecutor)
 
 pool = ProcessPool()
 executor = Executor()
@@ -45,6 +46,9 @@ async def executor_example():
 
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(executor, partial(foo, 74))
+
+pool.shutdown()
+executor.shutdown()
 ```
 
 ## Demo
@@ -63,8 +67,9 @@ def fib_wrapper(n):
     print(f"fib({n}) = {result}")
 
 async def watch_htop_and_output_while_execution():
-    pool = Executor()
-    await pool.map_async(fib_wrapper, range(45))
+    exe = Executor()
+    await exe.map_async(fib_wrapper, range(45))
+    exe.shutdown()
 
 asyncio.run(watch_htop_and_output_while_execution())
 ```
