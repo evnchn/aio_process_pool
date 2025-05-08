@@ -21,30 +21,30 @@ async def test_run():
 
 @pytest.mark.asyncio
 async def test_executor():
-    pool = Executor()
+    exe = Executor()
     loop = asyncio.get_event_loop()
 
-    futures = [loop.run_in_executor(pool, partial(fib, i)) for i in range(30)]
+    futures = [loop.run_in_executor(exe, partial(fib, i)) for i in range(30)]
     assert await asyncio.gather(*futures) == first_30_fib_numbers
-    pool.shutdown()
+
+    exe.shutdown()
 
 @pytest.mark.asyncio
 async def test_async_map():
-    pool = Executor()
-    assert await pool.map_async(fib, range(30)) == first_30_fib_numbers
-    pool.shutdown()
+    exe = Executor()
+    assert await exe.map_async(fib, range(30)) == first_30_fib_numbers
+    exe.shutdown()
 
 def test_map():
-    pool = Executor()
-    assert pool.map(fib, range(30)) == first_30_fib_numbers
-    pool.shutdown()
+    exe = Executor()
+    assert exe.map(fib, range(30)) == first_30_fib_numbers
+    exe.shutdown()
 
 def test_context_manager():
-    with Executor() as p:
-        assert p.map(fib, range(30)) == first_30_fib_numbers
+    with Executor() as exe:
+        assert exe.map(fib, range(30)) == first_30_fib_numbers
 
 @pytest.mark.asyncio
 async def test_async_context_manager():
-    with Executor() as p:
-        assert await p.map_async(fib, range(30)) == first_30_fib_numbers
-
+    with Executor() as exe:
+        assert await exe.map_async(fib, range(30)) == first_30_fib_numbers
