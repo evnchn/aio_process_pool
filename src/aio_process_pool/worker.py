@@ -27,6 +27,8 @@ def _worker_process(child_pipe):
             child_pipe.send((result, exception))
     except KeyboardInterrupt:
         pass
+    finally:
+        child_pipe.close()
 
 
 class Worker:
@@ -62,4 +64,5 @@ class Worker:
                 pass
         else:
             self.process.kill()
+        self.pipe.close()
         self.process.join()
