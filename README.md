@@ -25,18 +25,11 @@ pip install aio_process_pool
 ```python
 from aio_process_pool import ProcessPool, Executor
 
-def foo(x):
-    return x
-
-# Note:
-# - the process pool must be initialize AFTER all functions that are supposed
-#   to be called are defined (see #2)
-# - it's not save to initialize this process pool from a multithreaded process
-#   because it's based on `os.fork` / `multiprocessing.Process`
-#   (note: same is true for concurrent.future.ProcessPoolExecutor)
-
 pool = ProcessPool()
 executor = Executor()
+
+def foo(x):
+    return x
 
 async def pool_example():
     return await pool.run(foo, 72)
