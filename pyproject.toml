@@ -24,9 +24,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = [
-    "pytest_asyncio",
-]
+dependencies = []
 
 [project.urls]
 Documentation = "https://github.com/jeff-dh/aio_process_pool#readme"
@@ -42,6 +40,11 @@ extra-dependencies = [
 ]
 [tool.hatch.envs.types.scripts]
 check = "mypy --install-types --non-interactive {args:src/aio_process_pool tests}"
+[tool.hatch.envs.tests]
+extra-dependencies = [
+  "pytest>=8.0.0",
+  "pytest-asyncio>=0.26.0",
+]
 
 [tool.coverage.run]
 source_pkgs = ["aio_process_pool", "tests"]
