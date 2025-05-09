@@ -13,6 +13,7 @@ def _worker_process(child_pipe):
                 # the requested func is not available in this process
                 # -> restart
                 break
+
             if func is None:
                 break
 
@@ -40,6 +41,7 @@ class Worker:
         self.process = Process(target=_worker_process, args=(child_pipe,))
         self.process.daemon = True
         self.process.start()
+        self.is_working = False
 
     def _restart_process(self):
         self.shutdown()
@@ -47,14 +49,22 @@ class Worker:
 
     async def run(self, f, *args, **kwargs):
         assert f is not None
+        assert not self.is_working
 
+        self.is_working = True
         self.pipe.send((f, args, kwargs))
+
+        # await pipe.recv
         try:
-            return await io_bound(self.pipe.recv)
+            res = await io_bound(self.pipe.recv)
         except EOFError:
-            # called function is not available in child process -> restart
+            # called function is not available in child process -> restart & retry
             self._restart_process()
-            return await self.run(f, *args, **kwargs)
+            res = await io_bound(self.pipe.recv)
+
+        self.is_working = False
+
+        return res
 
     def shutdown(self, kill=False):
         if not kill:

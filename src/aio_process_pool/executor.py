@@ -1,6 +1,7 @@
 import asyncio
 import concurrent
 import concurrent.futures
+from threading import Condition
 
 from functools import partial
 
@@ -10,29 +11,37 @@ class Executor(concurrent.futures.Executor):
     def __init__(self, max_workers=None):
         self._futures_dict = {}
         self._pool = ProcessPool(max_workers, self._set_running_or_notify_cancel)
-        self.pending_shutdown = False
+
+        self._is_shutdown_pending = False
+        self._shutdown_ready_event = asyncio.Event()
+        self._shutdown_ready = Condition()
 
     def _set_running_or_notify_cancel(self, task) -> bool:
-        assert task in self._futures_dict
-
-        if self._futures_dict[task].set_running_or_notify_cancel():
-            return True
-
-        del self._futures_dict[task]
-        return False
+        return self._futures_dict[task].set_running_or_notify_cancel()
 
     def _task_done_callback(self, task):
-        concurrent_future = self._futures_dict.pop(task)
+        assert task in self._futures_dict
+        future = self._futures_dict.pop(task)
 
-        if (exception := task.exception()) is not None:
-            concurrent_future.set_exception(exception)
-        else:
-            concurrent_future.set_result(task.result())
+        if not future.cancelled():
+            if (exception := task.exception()) is not None:
+                future.set_exception(exception)
+            else:
+                future.set_result(task.result())
 
-        if self.pending_shutdown and len(self._futures_dict) == 0:
-            self._shutdown()
+
+        if self._is_shutdown_pending and len(self._futures_dict) == 0:
+            self._shutdown_ready.acquire()
+            self._shutdown_ready.notify_all()
+            self._shutdown_ready.release()
+
+            self._shutdown_ready_event.set()
+
 
     def submit(self, fn, /, *args, **kwargs):
+        if self._is_shutdown_pending:
+            raise RuntimeError("shutdown pending: can't schedule new work")
+
         # schedule execution as separate task
         task = asyncio.create_task(self._pool.run(fn, *args, **kwargs))
 
@@ -67,16 +76,38 @@ class Executor(concurrent.futures.Executor):
         coro = self.map_async(fn, *iterables, timeout=timeout, chunksize=chunksize)
         return loop.run_until_complete(coro)
 
+    def _prepare_shutdown(self, cancel_futures):
+        self._is_shutdown_pending = True
+        if cancel_futures:
+            for future in self._futures_dict.values():
+                future.cancel()
+
     def _shutdown(self):
         self._pool.shutdown()
 
-    def shutdown(self, wait=True, *, cancel_futures=False):
-        if cancel_futures:
-            for futures in self._futures_dict.values():
-                futures.cancel()
+    async def shutdown_async(self, wait=True, *, cancel_futures=False):
+        self._prepare_shutdown(cancel_futures)
 
-        if not wait:
-            self.pending_shutdown = True
-            return
+        if wait:
+            while len(self._futures_dict) > 0:
+                await self._shutdown_ready_event.wait()
+                self._shutdown_ready_event.clear()
 
         self._shutdown()
+
+    def shutdown(self, wait=True, *, cancel_futures=False):
+        self._prepare_shutdown(cancel_futures)
+
+        if wait:
+            self._shutdown_ready.acquire()
+            self._shutdown_ready.wait_for(lambda: len(self._futures_dict) == 0)
+            self._shutdown_ready.release()
+
+        self._shutdown()
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.shutdown_async()
+        return False
