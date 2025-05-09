@@ -7,7 +7,12 @@ from .utils import SubprocessException, io_bound
 def _worker_process(child_pipe):
     try:
         while True:
-            func, args, kwargs = child_pipe.recv()
+            try:
+                func, args, kwargs = child_pipe.recv()
+            except AttributeError:
+                # the requested func is not available in this process
+                # -> restart
+                break
             if func is None:
                 break
 
@@ -26,20 +31,35 @@ def _worker_process(child_pipe):
 
 class Worker:
     def __init__(self):
+        self._start_process()
+
+    def _start_process(self):
         self.pipe, child_pipe = Pipe()
         self.process = Process(target=_worker_process, args=(child_pipe,))
         self.process.daemon = True
         self.process.start()
 
+    def _restart_process(self):
+        self.shutdown()
+        self._start_process()
+
     async def run(self, f, *args, **kwargs):
         assert f is not None
 
         self.pipe.send((f, args, kwargs))
-        return await io_bound(self.pipe.recv)
+        try:
+            return await io_bound(self.pipe.recv)
+        except EOFError:
+            # called function is not available in child process -> restart
+            self._restart_process()
+            return await self.run(f, *args, **kwargs)
 
     def shutdown(self, kill=False):
         if not kill:
-            self.pipe.send((None, None, None))
+            try:
+                self.pipe.send((None, None, None))
+            except BrokenPipeError:
+                pass
         else:
             self.process.kill()
         self.process.join()
