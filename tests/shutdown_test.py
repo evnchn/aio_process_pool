@@ -1,12 +1,14 @@
 import asyncio
 import pytest
+import time
 
 from functools import partial
+from threading import Thread
 
 from aio_process_pool import Executor
 from .pool_test import fib
 
-fib33 = 3524578 # fib(33)
+fib32 = 2178309 # fib(32)
 
 def test_shutdown_trivial():
     exe = Executor()
@@ -19,48 +21,66 @@ async def test_shutdown_trivial_async():
     await exe.shutdown_async()
     assert exe.is_shutdown()
 
-async def shutdown_test(wait, cancel_futures):
+@pytest.mark.asyncio
+@pytest.mark.parametrize("wait", (True, False))
+@pytest.mark.parametrize("cancel_futures", (True, False))
+async def test_shutdown_parameters_async(wait, cancel_futures):
     exe = Executor(max_workers=2)
     loop = asyncio.get_event_loop()
 
-    # start long running jobs
-    futures = [loop.run_in_executor(exe, partial(fib, 33)) for _ in range(5)]
+    # start "long" running jobs
+    futures = [loop.run_in_executor(exe, partial(fib, 32)) for _ in range(5)]
     futures += [exe.shutdown_async(wait=wait, cancel_futures=cancel_futures)]
 
-    return exe, await asyncio.gather(*futures, return_exceptions=True)
+    results = await asyncio.gather(*futures, return_exceptions=True)
 
-def check_cancelled_shutdown_resutls(results):
-    assert results[0] == fib33
-    assert results[1] == fib33
-    assert isinstance(results[2], asyncio.CancelledError)
-    assert isinstance(results[3], asyncio.CancelledError)
-    assert isinstance(results[4], asyncio.CancelledError)
-    assert results[5] is None
+    if cancel_futures:
+        assert results[0] == results[1] == fib32
+        for i in [2, 3, 4]:
+            assert isinstance(results[i], asyncio.CancelledError)
+        assert results[5] is None
+    else:
+        assert results == [fib32] * 5 + [None]
 
-@pytest.mark.asyncio
-async def test_shutdown_cancel_true():
-    exe, results = await shutdown_test(True, True)
-
-    check_cancelled_shutdown_resutls(results)
     assert exe.is_shutdown()
 
 @pytest.mark.asyncio
-async def test_shutdown_cancel_true_wait_false():
-    exe, results = await shutdown_test(False, True)
+@pytest.mark.parametrize("wait", (True, False))
+@pytest.mark.parametrize("cancel_futures", (True, False))
+async def test_shutdown_parameters_sync(wait, cancel_futures):
+    exe = Executor(max_workers=2)
+    loop = asyncio.get_event_loop()
 
-    check_cancelled_shutdown_resutls(results)
-    assert exe.is_shutdown()
+    # start "long" running jobs
+    futures = [loop.run_in_executor(exe, partial(fib, 32)) for _ in range(5)]
 
-@pytest.mark.asyncio
-async def test_shutdown_cancel_false():
-    exe, results = await shutdown_test(True, False)
+    def shutdown_wrapper(wait, cancel_futures):
+        exe.shutdown(wait, cancel_futures=cancel_futures)
 
-    assert results == [fib33] * 5 + [None]
-    assert exe.is_shutdown()
+    shutdown_thread = None
+    if wait:
+        # blocking sync shutdown in a separate thread
+        shutdown_thread = Thread(target=shutdown_wrapper,
+                                 args=(wait, cancel_futures))
+        shutdown_thread.start()
 
-@pytest.mark.asyncio
-async def test_shutdown_cancel_false_wait_false():
-    exe, results = await shutdown_test(False, False)
+        # test whether it's blocking
+        time.sleep(0.1)
+        assert shutdown_thread.is_alive()
+    else:
+        exe.shutdown(wait, cancel_futures=cancel_futures)
 
-    assert results == [fib33] * 5 + [None]
+    results = await asyncio.gather(*futures, return_exceptions=True)
+
+    if cancel_futures:
+        for i in range(5):
+            assert isinstance(results[i], asyncio.CancelledError)
+    else:
+        for i in range(5):
+            assert results[i] == fib32
+
+    if wait:
+        assert shutdown_thread
+        shutdown_thread.join()
+
     assert exe.is_shutdown()
