@@ -47,3 +47,4 @@ class ProcessPool:
         self.worker.clear()
         while not self.pool.empty():
             self.pool.get_nowait()
+        # TODO in future >= 3.13: use self.pool.shutdown
