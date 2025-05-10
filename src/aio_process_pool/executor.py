@@ -102,6 +102,7 @@ class Executor(concurrent.futures.Executor):
             self._shutdown_done.acquire()
             self._shutdown_done.wait_for(lambda: len(self._futures_dict) == 0)
             self._shutdown_done.release()
+            self._shutdown()
 
     async def __aenter__(self):
         return self
