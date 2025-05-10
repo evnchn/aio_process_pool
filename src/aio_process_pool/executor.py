@@ -68,7 +68,10 @@ class Executor(concurrent.futures.Executor):
         return await asyncio.gather(*futures)
 
     def map(self, fn, *iterables, timeout=None, chunksize=1):
-        loop = asyncio.get_event_loop()
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
 
         if loop.is_running():
             raise RuntimeError("event loop already running, use map_async")
