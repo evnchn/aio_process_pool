@@ -34,6 +34,10 @@ class ProcessPool:
             raise exception
         return result
 
+    async def map(self, fn, *iterables):
+        futures = [self.run(fn, *args) for args in zip(*iterables)]
+        return await asyncio.gather(*futures)
+
     def is_shutdown(self):
         return len(self.worker) == self.pool.qsize() == 0
 
