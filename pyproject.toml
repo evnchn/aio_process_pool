@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "aio_process_pool"
 dynamic = ["version"]
-description = "An async, (hopefully soon fully) concurrent.futures.Executor compliant, android compatible process pool implementation"
+description = "A simple async, android compatible(, atm not thread safe) process pool implementation including a (mostly) `concurrent.futures.Executor` / `concurrent.futures.ProcessPoolExecutor` compliant `Executor`."
 readme = "README.md"
 requires-python = ">=3.8"
 license = "MIT"

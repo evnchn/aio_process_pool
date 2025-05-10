@@ -5,7 +5,7 @@
 
 -----
 
-Tihs pacakage provides an async, (hopefully soon fully) `concurrent.futures.Executor` compliant, android compatible process pool.
+A simple async, android compatible (,not thread safe)  process pool implementation including a (mostly) `concurrent.futures.Executor` / `concurrent.futures.ProcessPoolExecutor` compliant `Executor`.
 
 ## Table of Contents
 
