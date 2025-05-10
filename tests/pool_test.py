@@ -49,3 +49,9 @@ async def test_async_context_manager():
     async with Executor() as exe:
         assert await exe.map_async(fib, range(30)) == first_30_fib_numbers
 
+tpi_pool = ProcessPool()
+def blub(): return True
+
+@pytest.mark.asyncio
+async def test_pool_init_before_function_def():
+    assert await tpi_pool.run(blub)
