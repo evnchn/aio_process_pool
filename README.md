@@ -67,6 +67,26 @@ async def watch_htop_and_output_while_execution():
 asyncio.run(watch_htop_and_output_while_execution())
 ```
 
+## Executor
+
+The `Executor` is a mostly `concurrent.futures.Executor` compliant and can therefor be used as a replacement for `concurrent.futures.ProcessPoolExecutor`. This is especially useful, since `concurrent.futures.ProcessPoolExecutor` is not android compatible and the executor provided in this package is.
+
+### shutdown behaviour / deadlock under certain conditions
+
+Since this is all based on asyncio it's -- I assume -- impossible(?) to implement the specified shutdown behaviour under certain conditions.
+
+If there are tasks pending and the `wait` parameter is `True`, `shutdown` is supposed to block until all tasks (or some, depending on `cancel_futures`) are finished. Since the execution of those task depends on the event loop this produces a deadlock.
+
+If this becomes a problem, this situation could be detected and shutdown could cancel / kill all pending tasks and return.
+
+### map from within the loop
+
+Since map is supposed to be a sync function according to `concurrent.futures.Executor`, it gets an event loop and runs `map_async` in that loop. This is only possible if we're not inside the loop already. Otherwise call `map_async`. This is somehow not `concurrent.futures.Executor` compliant.
+
+### performance
+
+A brief test indicated that the speed is similar to `concurrent.futures.ProcessPoolExecutor`.
+
 ## License
 
 `aio_process_pool` is distributed under the terms of the [MIT](https://spdx.org/licenses/MIT.html) license.
