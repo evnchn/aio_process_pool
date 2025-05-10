@@ -60,7 +60,7 @@ class Worker:
         except EOFError:
             # called function is not available in child process -> restart & retry
             self._restart_process()
-            res = await io_bound(self.pipe.recv)
+            return await self.run(f, *args, **kwargs)
 
         self.is_working = False
 
