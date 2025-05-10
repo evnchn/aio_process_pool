@@ -69,6 +69,25 @@ async def test_shutdown_cancel_true():
     assert results[5] is None
 
 @pytest.mark.asyncio
+async def test_shutdown_cancel_true_wait_false():
+    exe = Executor(max_workers=2)
+    loop = asyncio.get_event_loop()
+
+    # start long running jobs
+    futures = [loop.run_in_executor(exe, partial(fib, 33)) for _ in range(5)]
+    futures += [exe.shutdown_async(wait=False, cancel_futures=True)]
+
+    results = await asyncio.gather(*futures, return_exceptions=True)
+
+    fib33 = 3524578 # fib(33)
+    assert results[0] == fib33
+    assert results[1] == fib33
+    assert isinstance(results[2], asyncio.CancelledError)
+    assert isinstance(results[3], asyncio.CancelledError)
+    assert isinstance(results[4], asyncio.CancelledError)
+    assert results[5] is None
+
+@pytest.mark.asyncio
 async def test_shutdown_cancel_false():
     exe = Executor(max_workers=2)
     loop = asyncio.get_event_loop()
@@ -76,6 +95,25 @@ async def test_shutdown_cancel_false():
     # start long running jobs
     futures = [loop.run_in_executor(exe, partial(fib, 33)) for _ in range(5)]
     futures += [exe.shutdown_async(wait=True, cancel_futures=False)]
+
+    results = await asyncio.gather(*futures, return_exceptions=True)
+
+    fib33 = 3524578 # fib(33)
+    assert results[0] == fib33
+    assert results[1] == fib33
+    assert results[2] == fib33
+    assert results[3] == fib33
+    assert results[4] == fib33
+    assert results[5] is None
+
+@pytest.mark.asyncio
+async def test_shutdown_cancel_false_wait_false():
+    exe = Executor(max_workers=2)
+    loop = asyncio.get_event_loop()
+
+    # start long running jobs
+    futures = [loop.run_in_executor(exe, partial(fib, 33)) for _ in range(5)]
+    futures += [exe.shutdown_async(wait=False, cancel_futures=False)]
 
     results = await asyncio.gather(*futures, return_exceptions=True)
 

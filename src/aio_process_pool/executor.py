@@ -13,8 +13,8 @@ class Executor(concurrent.futures.Executor):
         self._pool = ProcessPool(max_workers, self._set_running_or_notify_cancel)
 
         self._is_shutdown_pending = False
-        self._shutdown_ready_event = asyncio.Event()
-        self._shutdown_ready = Condition()
+        self._shutdown_done_event = asyncio.Event()
+        self._shutdown_done = Condition()
 
     def _set_running_or_notify_cancel(self, task) -> bool:
         return self._futures_dict[task].set_running_or_notify_cancel()
@@ -31,11 +31,13 @@ class Executor(concurrent.futures.Executor):
 
 
         if self._is_shutdown_pending and len(self._futures_dict) == 0:
-            self._shutdown_ready.acquire()
-            self._shutdown_ready.notify_all()
-            self._shutdown_ready.release()
+            self._shutdown()
 
-            self._shutdown_ready_event.set()
+            self._shutdown_done.acquire()
+            self._shutdown_done.notify_all()
+            self._shutdown_done.release()
+
+            self._shutdown_done_event.set()
 
 
     def submit(self, fn, /, *args, **kwargs):
@@ -90,20 +92,16 @@ class Executor(concurrent.futures.Executor):
 
         if wait:
             while len(self._futures_dict) > 0:
-                await self._shutdown_ready_event.wait()
-                self._shutdown_ready_event.clear()
-
-        self._shutdown()
+                await self._shutdown_done_event.wait()
+                self._shutdown_done_event.clear()
 
     def shutdown(self, wait=True, *, cancel_futures=False):
         self._prepare_shutdown(cancel_futures)
 
         if wait:
-            self._shutdown_ready.acquire()
-            self._shutdown_ready.wait_for(lambda: len(self._futures_dict) == 0)
-            self._shutdown_ready.release()
-
-        self._shutdown()
+            self._shutdown_done.acquire()
+            self._shutdown_done.wait_for(lambda: len(self._futures_dict) == 0)
+            self._shutdown_done.release()
 
     async def __aenter__(self):
         return self
