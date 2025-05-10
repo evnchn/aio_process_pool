@@ -29,7 +29,6 @@ class Executor(concurrent.futures.Executor):
             else:
                 future.set_result(task.result())
 
-
         if self._is_shutdown_pending and len(self._futures_dict) == 0:
             self._shutdown()
 
@@ -38,7 +37,6 @@ class Executor(concurrent.futures.Executor):
             self._shutdown_done.release()
 
             self._shutdown_done_event.set()
-
 
     def submit(self, fn, /, *args, **kwargs):
         if self._is_shutdown_pending:
@@ -87,22 +85,35 @@ class Executor(concurrent.futures.Executor):
     def _shutdown(self):
         self._pool.shutdown()
 
+    async def _pending_async_shutdown(self):
+        while len(self._futures_dict) > 0:
+            await self._shutdown_done_event.wait()
+            self._shutdown_done_event.clear()
+        self._shutdown()
+
     async def shutdown_async(self, wait=True, *, cancel_futures=False):
         self._prepare_shutdown(cancel_futures)
 
+        coro = self._pending_async_shutdown()
         if wait:
-            while len(self._futures_dict) > 0:
-                await self._shutdown_done_event.wait()
-                self._shutdown_done_event.clear()
+            await coro
+        else:
+            asyncio.create_task(coro)
 
     def shutdown(self, wait=True, *, cancel_futures=False):
         self._prepare_shutdown(cancel_futures)
+
+        if len(self._futures_dict) == 0:
+            self._shutdown()
+            return
 
         if wait:
             self._shutdown_done.acquire()
             self._shutdown_done.wait_for(lambda: len(self._futures_dict) == 0)
             self._shutdown_done.release()
-            self._shutdown()
+
+    def is_shutdown(self):
+        return self._pool.is_shutdown()
 
     async def __aenter__(self):
         return self

@@ -34,6 +34,9 @@ class ProcessPool:
             raise exception
         return result
 
+    def is_shutdown(self):
+        return len(self.worker) == self.pool.qsize() == 0
+
     def shutdown(self, kill=False):
         # assert all workers are idle
         assert len(self.worker) == self.pool.qsize()
