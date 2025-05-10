@@ -5,13 +5,16 @@
 
 -----
 
-A simple async, android compatible (,not thread safe)  process pool implementation including a (mostly) `concurrent.futures.Executor` / `concurrent.futures.ProcessPoolExecutor` compliant `Executor`.
+A simple async, android compatible process pool and a (mostly) `concurrent.futures.Executor` / `ProcessPoolExecutor` compliant `Executor`.
+
+Not thread safe.
 
 ## Table of Contents
 
 - [Installation](#installation)
 - [Usage](#usage)
 - [Demo](#demo)
+- [Executor](#executor)
 - [License](#license)
 
 ## Installation
@@ -23,26 +26,71 @@ pip install aio_process_pool
 ## Usage
 
 ```python
+import asyncio
+
 from aio_process_pool import ProcessPool, Executor
 
-pool = ProcessPool()
-executor = Executor()
-
-def foo(x):
+def foo(x=7):
     return x
 
-async def pool_example():
-    return await pool.run(foo, 72)
-
-async def executor_example():
-    from functools import partial
-
-    loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(executor, partial(foo, 74))
-
-pool.shutdown()
+# sync
+executor = Executor()
+assert executor.map(foo, [1, 2, 3]) == [1, 2, 3]
 executor.shutdown()
+
+# async
+async def example():
+    pool = ProcessPool()
+    executor = Executor()
+
+    # run a function in the pool
+    assert await pool.run(foo, 2) == 2
+    # map using a process pool
+    assert await pool.map(foo, [1, 2, 3]) == [1, 2, 3]
+
+    # use the executor with run_in_executor from asyncio
+    loop = asyncio.get_event_loop()
+    assert await loop.run_in_executor(executor, foo) == 7
+
+    # map again
+    assert await executor.map_async(foo, [1, 2, 3]) == [1, 2, 3]
+
+    pool.shutdown()
+    await executor.shutdown_async()
+
+asyncio.run(example())
 ```
+
+## Executor
+
+The `Executor` is mostly `concurrent.futures.Executor` compliant and can therefor be used as a replacement for `concurrent.futures.ProcessPoolExecutor`.
+
+It is possible to monkey patch this executor into an environment:
+
+```python
+import concurrent.futures, aio_process_pool
+concurrent.futures.ProcessPoolExecutor = aio_process_pool.Executor
+```
+
+This is very helpful if you have code using a `ProcessPoolExecutor` and want to run it on android (with buildozer).
+
+### shutdown behaviour / deadlock under certain conditions
+
+Since this package is based on asyncio it's -- I assume -- impossible(?) to implement the specified shutdown behaviour under certain conditions (or I can't figure out how).
+
+If there are tasks pending and the `wait` parameter is `True` `shutdown` is supposed to block until all pending tasks are done. Since the execution of those task depends on the event loop this produces a deadlock.
+
+If possible use `shutdown_async` instead. `shutdown_async` should behave `concurrent.futures.Executor` compliant.
+
+If this becomes a problem, this situation could be detected and shutdown could cancel / kill all pending tasks and return.
+
+### map from within the loop
+
+Since `map` is -- according to `concurrent.futures.Executor` -- supposed to be a sync function it uses `asyncio.new_event_loop` to get a new event loop and runs `map_async` in that loop. This is only possible if we're not inside a loop already. This is somehow not `concurrent.futures.Executor` compliant.
+
+If possible use `map_async` instead.
+
+If anyone knows how to improve this.....
 
 ## Demo
 
@@ -66,26 +114,6 @@ async def watch_htop_and_output_while_execution():
 
 asyncio.run(watch_htop_and_output_while_execution())
 ```
-
-## Executor
-
-The `Executor` is a mostly `concurrent.futures.Executor` compliant and can therefor be used as a replacement for `concurrent.futures.ProcessPoolExecutor`. This is especially useful, since `concurrent.futures.ProcessPoolExecutor` is not android compatible and the executor provided in this package is.
-
-### shutdown behaviour / deadlock under certain conditions
-
-Since this is all based on asyncio it's -- I assume -- impossible(?) to implement the specified shutdown behaviour under certain conditions.
-
-If there are tasks pending and the `wait` parameter is `True`, `shutdown` is supposed to block until all tasks (or some, depending on `cancel_futures`) are finished. Since the execution of those task depends on the event loop this produces a deadlock.
-
-If this becomes a problem, this situation could be detected and shutdown could cancel / kill all pending tasks and return.
-
-### map from within the loop
-
-Since map is supposed to be a sync function according to `concurrent.futures.Executor`, it gets an event loop and runs `map_async` in that loop. This is only possible if we're not inside the loop already. Otherwise call `map_async`. This is somehow not `concurrent.futures.Executor` compliant.
-
-### performance
-
-A brief test indicated that the speed is similar to `concurrent.futures.ProcessPoolExecutor`.
 
 ## License
 
