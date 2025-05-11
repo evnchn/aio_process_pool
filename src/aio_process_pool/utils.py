@@ -30,3 +30,26 @@ async def io_bound(callback, *args, **kwargs):
     loop = asyncio.get_event_loop()
     # first parameter None -> run in default ThreadPoolExecutor
     return await loop.run_in_executor(None, partial(callback, *args, **kwargs))
+
+
+class EventInterrupter:
+    def __init__(self, e):
+        self.event = e
+        self.task = asyncio.current_task()
+        self.cancel_task = None
+
+    async def __aenter__(self):
+        loop = asyncio.get_running_loop()
+        self.cancel_task = loop.create_task(self.cancel_on_trigger())
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        assert self.cancel_task
+        if not self.cancel_task.done():
+            self.cancel_task.cancel()
+        return None
+
+    async def cancel_on_trigger(self):
+        await self.event.wait()
+        assert self.task
+        self.task.cancel()

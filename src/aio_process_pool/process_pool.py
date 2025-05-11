@@ -2,6 +2,7 @@ import asyncio
 import os
 
 from .worker import Worker as Worker
+from .utils import EventInterrupter
 
 
 class ProcessPool:
@@ -19,8 +20,15 @@ class ProcessPool:
         self.cancel_futures = False
         self.set_running_callback = set_running_callback or (lambda _: True)
 
+        self.shutdown_event = asyncio.Event()
+
     async def run(self, f, *args, **kwargs):
-        worker = await self.pool.get()
+        if self.shutdown_event.is_set():
+            raise asyncio.CancelledError()
+
+        async with EventInterrupter(self.shutdown_event):
+            worker = await self.pool.get()
+
         assert worker.process.is_alive()
 
         task = asyncio.current_task()
@@ -42,8 +50,7 @@ class ProcessPool:
         return len(self.worker) == self.pool.qsize() == 0
 
     def shutdown(self, kill=False):
-        # assert all workers are idle
-        assert len(self.worker) == self.pool.qsize()
+        self.shutdown_event.set()
 
         for w in self.worker:
             w.shutdown(kill=kill)

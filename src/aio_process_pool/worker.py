@@ -1,7 +1,8 @@
+import asyncio
 import traceback
 from multiprocessing import Pipe, Process
 
-from .utils import SubprocessException, io_bound
+from .utils import EventInterrupter, SubprocessException, io_bound
 
 
 def _worker_process(child_pipe):
@@ -34,6 +35,8 @@ def _worker_process(child_pipe):
 
 class Worker:
     def __init__(self):
+        self._shutdown_event = asyncio.Event()
+        self._lock = asyncio.Lock()
         self._start_process()
 
     def _start_process(self):
@@ -41,38 +44,55 @@ class Worker:
         self.process = Process(target=_worker_process, args=(child_pipe,))
         self.process.daemon = True
         self.process.start()
-        self.is_working = False
 
     def _restart_process(self):
-        self.shutdown()
+        self._shutdown(restart=True)
         self._start_process()
 
-    async def run(self, f, *args, **kwargs):
+    async def _run(self, f, *args, **kwargs):
         assert f is not None
-        assert not self.is_working
+        assert not self._shutdown_event.is_set()
 
-        self.is_working = True
         self.pipe.send((f, args, kwargs))
 
-        # await pipe.recv
         try:
-            res = await io_bound(self.pipe.recv)
+            return await io_bound(self.pipe.recv)
         except EOFError:
+            if self._shutdown_event.is_set():
+                # shutdown killed the child process
+                raise asyncio.CancelledError()
+
             # called function is not available in child process -> restart & retry
             self._restart_process()
-            return await self.run(f, *args, **kwargs)
+            return await self._run(f, *args, **kwargs)
 
-        self.is_working = False
+    async def run(self, f, *args, **kwargs):
+        if self._shutdown_event.is_set():
+            raise asyncio.CancelledError()
 
-        return res
+        async with EventInterrupter(self._shutdown_event):
+            await self._lock.acquire()
 
-    def shutdown(self, kill=False):
+        try:
+            return await self._run(f, *args, **kwargs)
+        finally:
+            self._lock.release()
+
+    def _shutdown(self, kill=False, restart=False):
+        if not restart:
+            self._shutdown_event.set()
+
         if not kill:
             try:
                 self.pipe.send((None, None, None))
             except BrokenPipeError:
+                # this happens if the child process restarts, see _run
                 pass
         else:
             self.process.kill()
-        self.pipe.close()
+
         self.process.join()
+        self.pipe.close()
+
+    def shutdown(self, kill=False):
+        self._shutdown(kill, restart=False)
