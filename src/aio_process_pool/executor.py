@@ -111,9 +111,13 @@ class Executor(concurrent.futures.Executor):
             return
 
         if wait:
-            self._shutdown_done.acquire()
-            self._shutdown_done.wait_for(lambda: len(self._futures_dict) == 0)
-            self._shutdown_done.release()
+            raise RuntimeError("aio_process_pool: shutdown deadlock, see README")
+            # the following lines would be the correct behaviour, but it
+            # deadlocks, since the event loop is not running while this
+            # function blocks......
+            # self._shutdown_done.acquire()
+            # self._shutdown_done.wait_for(lambda: len(self._futures_dict) == 0)
+            # self._shutdown_done.release()
 
     def is_shutdown(self):
         return self._pool.is_shutdown()

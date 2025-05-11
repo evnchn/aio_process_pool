@@ -76,13 +76,14 @@ This is very helpful if you have code using a `ProcessPoolExecutor` and want to 
 
 ### shutdown behaviour / deadlock under certain conditions
 
-Since this package is based on asyncio it's -- I assume -- impossible(?) to implement the specified shutdown behaviour under certain conditions (or I can't figure out how).
+Since this package is based on asyncio I was not able to implement the specified shutdown behaviour under certain conditions.
 
 If there are tasks pending and the `wait` parameter is `True` `shutdown` is supposed to block until all pending tasks are done. Since the execution of those task depends on the event loop this produces a deadlock.
 
+The handle this situation this implementation raises a `RuntimeError` in that case instead of deadlocking.
+
 If possible use `shutdown_async` instead. `shutdown_async` should behave `concurrent.futures.Executor` compliant.
 
-If this becomes a problem, this situation could be detected and shutdown could cancel / kill all pending tasks and return.
 
 ### map from within the loop
 
