@@ -42,16 +42,12 @@ class Executor(concurrent.futures.Executor):
         if self._is_shutdown_pending:
             raise RuntimeError("shutdown pending: can't schedule new work")
 
-        # schedule execution as separate task
         task = asyncio.create_task(self._pool.run(fn, *args, **kwargs))
 
-        # create future
         self._futures_dict[task] = concurrent.futures._base.Future()
 
-        # add task.done callback
         task.add_done_callback(self._task_done_callback)
 
-        # return future
         return self._futures_dict[task]
 
     async def map_async(self, fn, *iterables, timeout=None, chunksize=1):

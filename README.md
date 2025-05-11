@@ -52,6 +52,10 @@ async def example():
     loop = asyncio.get_event_loop()
     assert await loop.run_in_executor(executor, foo) == 7
 
+    # use submit
+    concurrent_future = executor.submit(foo, 3)
+    assert await asyncio.wrap_future(concurrent_future) == 3
+
     # map again
     assert await executor.map_async(foo, [1, 2, 3]) == [1, 2, 3]
 
@@ -72,7 +76,7 @@ import concurrent.futures, aio_process_pool
 concurrent.futures.ProcessPoolExecutor = aio_process_pool.Executor
 ```
 
-This is very helpful if you have code using a `ProcessPoolExecutor` and want to run it on android (with buildozer).
+This is handy if you have code using a `ProcessPoolExecutor` and want to run it on android (with buildozer).
 
 ### shutdown behaviour / deadlock under certain conditions
 
