@@ -1,9 +1,8 @@
-"""the content of this file is borrowed from nicegui.run"""
-
 import asyncio
 from functools import partial
 
 
+# this class is borrowed from nicegui.run
 class SubprocessException(Exception):
     """A picklable exception to represent exceptions raised in subprocesses."""
 

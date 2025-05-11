@@ -48,7 +48,7 @@ async def example():
     # map using a process pool
     assert await pool.map(foo, [1, 2, 3]) == [1, 2, 3]
 
-    # use the executor with run_in_executor from asyncio
+    # use the executor with run_in_executor
     loop = asyncio.get_event_loop()
     assert await loop.run_in_executor(executor, foo) == 7
 
